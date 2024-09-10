@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TARGET_DIR=./_tmp
+TARGET_DIR=$(mktemp -d)
 
 function cleanup {
     rm -rf $TARGET_DIR
@@ -38,6 +38,8 @@ function test {
     fi
     echo "Files are the same"
     echo "Time taken: $((end-start)) seconds"
+    exit 0
+    rm -rf $TARGET_DIR
 }
 
 # Handle debug mode
