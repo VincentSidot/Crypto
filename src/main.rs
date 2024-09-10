@@ -1,4 +1,7 @@
-use std::{io::Write, path::PathBuf};
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use aes_gcm::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
@@ -12,6 +15,9 @@ use rsa::{
     pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey, EncodeRsaPrivateKey, EncodeRsaPublicKey},
     Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey,
 };
+
+const AES_KEY_LEN: usize = 256; // RSA 2048 bits creates a 256 bytes encrypted data chunk.
+const AES_NONCE_LEN: usize = 12;
 
 #[derive(Parser)]
 struct Args {
@@ -64,11 +70,14 @@ fn generate_keys(bits: usize, output: PathBuf) {
         .expect("failed to convert to pem");
 
     std::fs::write(&output, priv_key_pem).expect("failed to write private key");
-    std::fs::write(output.with_extension("pub"), pub_key_pem).expect("failed to write public key");
+
+    let pub_output = PathBuf::from(format!("{}.pub", output.display()));
+
+    std::fs::write(&pub_output, pub_key_pem).expect("failed to write public key");
     println!(
         "Keys generated and saved to {} and {}",
         output.display(),
-        output.with_extension("pub").display()
+        pub_output.display()
     );
 }
 
@@ -89,7 +98,7 @@ fn encrypt(public_key: String, input: PathBuf, output: Option<PathBuf>) {
         .expect("failed to encrypt AES key");
 
     // File construction
-    let output = output.unwrap_or_else(|| input.with_extension("enc"));
+    let output = output.unwrap_or_else(|| PathBuf::from(format!("{}.enc", input.display())));
     let mut file = std::fs::File::create(&output).expect("failed to create file");
     file.write_all(&enc_aes_key)
         .expect("failed to write encrypted AES key");
@@ -103,8 +112,8 @@ fn decrypt(private_key: String, input: PathBuf, output: Option<PathBuf>) {
     let data = std::fs::read(&input).expect("failed to read data");
 
     // Extract the encrypted AES key and data
-    let enc_aes_key = &data[..256];
-    let enc_data = &data[256..];
+    let enc_aes_key = &data[..AES_KEY_LEN];
+    let enc_data = &data[AES_KEY_LEN..];
 
     // RSA decryption
     let priv_key_pem = std::fs::read_to_string(private_key).expect("failed to read private key");
@@ -119,7 +128,7 @@ fn decrypt(private_key: String, input: PathBuf, output: Option<PathBuf>) {
     let dec_data = decrypt_aes(&key, enc_data);
 
     // File construction
-    let output = output.unwrap_or_else(|| input.with_extension("dec"));
+    let output = output.unwrap_or_else(|| PathBuf::from(format!("{}.dec", input.display())));
     std::fs::write(&output, dec_data).expect("failed to write decrypted data");
 
     println!("Decrypted data saved to {}", output.display());
@@ -134,17 +143,17 @@ fn encrypt_aes(rng: &mut ThreadRng, key: &Key<Aes256Gcm>, data: &[u8]) -> Vec<u8
     let cipher = Aes256Gcm::new(key);
     let encrypted = cipher.encrypt(&nonce, data).expect("failed to encrypt");
     // Prepend the nonce to the encrypted data
-    let mut result = Vec::with_capacity(12 + encrypted.len());
+    let mut result = Vec::with_capacity(AES_NONCE_LEN + encrypted.len());
     result.extend_from_slice(nonce.as_ref());
     result.extend_from_slice(&encrypted);
     result
 }
 
 fn decrypt_aes(key: &Key<Aes256Gcm>, data: &[u8]) -> Vec<u8> {
-    let nonce = Nonce::from_slice(&data[..12]);
+    let nonce = Nonce::from_slice(&data[..AES_NONCE_LEN]);
     let cipher = Aes256Gcm::new(key);
     cipher
-        .decrypt(nonce, &data[12..])
+        .decrypt(nonce, &data[AES_NONCE_LEN..])
         .expect("failed to decrypt")
 }
 
