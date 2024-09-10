@@ -2,5 +2,10 @@
 name = "crypto-files"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
+aes-gcm = "0.10.3"
+clap = { version = "4.5.17", features = ["derive"] }
+rand = "0.8.5"
+rsa = { version = "0.9.6", features = ["std"] }
