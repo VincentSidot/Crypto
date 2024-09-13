@@ -1,5 +1,16 @@
 # Crypto Module
 
+[![Build Status][build-img]][build-url]
+[![Documentation][doc-img]][doc-url]
+[![License][lic-img]][lic-url]
+
+[build-img]: https://img.shields.io/github/actions/workflow/status/VincentSidot/Crypto/rust.yml?branch=main&style=for-the-badge
+[build-url]: https://github.com/VincentSidot/Crypto/actions/workflows/rust.yml
+[doc-img]: https://img.shields.io/badge/docs.rs-Crypto-4d76ae?style=for-the-badge
+[doc-url]: https://vincentsidot.github.io/Crypto/crypto/index.html
+[lic-img]: https://img.shields.io/badge/LICENSE-MIT-25bdc2?style=for-the-badge
+[lic-url]: https://github.com/VincentSidot/Crypto/blob/main/LICENSE
+
 ## Table of Contents
 
 - [Crypto Module](#crypto-module)
