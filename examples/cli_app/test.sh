@@ -1,6 +1,7 @@
 #!/bin/bash
 
 TARGET_DIR=$(mktemp -d)
+BIN_DIR=../../target
 
 function cleanup {
     rm -rf $TARGET_DIR
@@ -38,18 +39,17 @@ function test {
     fi
     echo "Files are the same"
     echo "Time taken: $((end-start)) seconds"
-    exit 0
     rm -rf $TARGET_DIR
 }
 
 # Handle debug mode
 cargo build > /dev/null 2>&1
 echo "Running in debug mode"
-test ./target/debug/crypto-files
+test $BIN_DIR/debug/crypto-files
 
 # Handle release mode
 cargo build --release > /dev/null 2>&1
 echo "Running in release mode"
-test ./target/release/crypto-files
+test $BIN_DIR/release/crypto-files
 
 
