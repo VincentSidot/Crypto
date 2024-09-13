@@ -13,6 +13,7 @@
     - [Key Management](#key-management)
     - [Buffer-Sized Operations](#buffer-sized-operations)
   - [Example](#example)
+    - [Using TCP Stream](#using-tcp-stream)
   - [Changelog](#changelog)
   - [License](#license)
 
@@ -139,6 +140,50 @@ fn main() {
 
     assert_eq!(b"Hello, world!", &decrypted[..]);
 }
+```
+### Using TCP Stream
+
+From the test suite, here is an example of using `CryptoReader` and `CryptoWriter` with a TCP stream:
+
+```rust
+    use crypto::{CryptoReader, CryptoWriter, RsaKeys};
+    use std::io::{Write, Read};
+    use std::net::{TcpListener, TcpStream};
+    use std::thread;
+
+    #[test]
+    fn tcp_stream() {
+        
+        let listener = TcpListener::bind("localhost:0").expect("failed to bind to address");
+        let port = listener.local_addr().unwrap().port();
+        let (private_key, public_key) = {
+            let keys = get_keys();
+            let private_key = keys.private_key.as_ref().unwrap();
+            let public_key = keys.public_key.as_ref().unwrap();
+            (private_key.clone(), public_key.clone())
+        };
+        
+        let data = include_str!("../tests/lorem_ipsum.txt").as_bytes();
+        
+        let handle = thread::spawn(move || {
+            let (stream, _) = listener.accept().expect("failed to accept connection");
+            // Send the data to the client
+            let mut writer = CryptoWriter::<_, 16>::new(stream, public_key).unwrap();
+            writer.write_all(data).expect("failed to write data");
+        });
+        
+        let stream = TcpStream::connect(format!("localhost:{}", port)).expect("failed to connect");
+        let mut reader =
+            CryptoReader::<_, 16>::new(stream, private_key).expect("failed to create reader");
+        let mut decrypted = Vec::new();
+        reader
+            .read_to_end(&mut decrypted)
+            .expect("failed to read data");
+        
+        handle.join().expect("failed to join thread");
+        
+        assert_eq!(data, decrypted.as_slice());
+    }
 ```
 
 ## Changelog
