@@ -60,6 +60,44 @@
 //!
 //! assert_eq!(b"Hello, world!", &decrypted[..]);
 //! ```
+//! ### Using TCP Stream
+//!
+//! ```rust
+//! use crypto::{CryptoReader, CryptoWriter, RsaKeys};
+//! use std::io::{Read as _, Write as _};
+//! use std::net::{TcpListener, TcpStream};
+//! use std::thread;
+//!
+//! let listener = TcpListener::bind("localhost:0").expect("failed to bind to address");
+//! let port = listener.local_addr().unwrap().port();
+//! let (private_key, public_key) = {
+//!     let keys = RsaKeys::generate().expect("Failed to generate RSA keys");
+//!     let private_key = keys.private_key.as_ref().unwrap();
+//!     let public_key = keys.public_key.as_ref().unwrap();
+//!     (private_key.clone(), public_key.clone())
+//! };
+//!
+//! let data = b"Hello, World!";
+//!
+//! let handle = thread::spawn(move || {
+//!     let (stream, _) = listener.accept().expect("failed to accept connection");
+//!     // Send the data to the client
+//!     let mut writer = CryptoWriter::<_, 16>::new(stream, public_key).unwrap();
+//!     writer.write_all(data).expect("failed to write data");
+//! });
+//!
+//! let stream = TcpStream::connect(format!("localhost:{}", port)).expect("failed to connect");
+//! let mut reader =
+//!     CryptoReader::<_, 16>::new(stream, private_key).expect("failed to create reader");
+//! let mut decrypted = Vec::new();
+//! reader
+//!     .read_to_end(&mut decrypted)
+//!     .expect("failed to read data");
+//!
+//! handle.join().expect("failed to join thread");
+//!
+//! assert_eq!(data, decrypted.as_slice());
+//! ```
 //!
 //! ## Tests
 //! Several tests are provided to ensure the correctness of encryption and decryption functionality,
@@ -97,20 +135,20 @@ macro_rules! CryptoWriter {
 #[allow(unused_macros)]
 macro_rules! dbg_print {
     ($($arg:tt)*) => {
-        // #[cfg(debug_assertions)]
-        // {
-        //     eprintln!($($arg)*);
-        // }
+        #[cfg(debug_assertions)]
+        {
+            // eprint!($($arg)*);
+        }
     };
 }
 
 #[allow(unused_macros)]
 macro_rules! dbg_println {
     ($($arg:tt)*) => {
-        // #[cfg(debug_assertions)]
-        // {
-        //     eprintln!($($arg)*);
-        // }
+        #[cfg(debug_assertions)]
+        {
+            // eprintln!($($arg)*);
+        }
     };
 }
 
@@ -164,6 +202,18 @@ mod tests {
         assert_eq!(msg.as_ref(), decrypted.as_slice());
     }
 
+    macro_rules! test_exotic_buffer_size {
+        ($buf:literal, $name: ident, $size:literal) => {
+            #[test]
+            fn $name() {
+                test_message::<$buf, _>([1; $size]);
+            }
+        };
+        ($($buf:literal, $name: ident, $size:literal);+$(;)?) => {
+            $(test_exotic_buffer_size!($buf, $name, $size);)+
+        };
+    }
+
     #[test]
     fn test_key_serialize_deserialize() {
         let keys = get_keys();
@@ -187,6 +237,44 @@ mod tests {
     }
 
     #[test]
+    fn bad_rsa_key_serialize() {
+        let bad_key = "Invalid RSA Key";
+        let keys = RsaKeys::from_key_pem(bad_key);
+        assert!(keys.is_err());
+    }
+
+    #[test]
+    fn public_key_serialize() {
+        let pub_key = include_str!("../tests/test.pub");
+        let keys = RsaKeys::from_public_key_pem(pub_key).expect("failed to parse keys");
+        assert!(keys.private_key.is_none());
+        assert!(keys.public_key.is_some());
+    }
+
+    #[test]
+    fn private_key_serialize() {
+        let priv_key = include_str!("../tests/test");
+        let keys = RsaKeys::from_private_key_pem(priv_key).expect("failed to parse keys");
+        assert!(keys.private_key.is_some());
+        assert!(keys.public_key.is_none());
+    }
+
+    #[test]
+    fn key_serialize() {
+        let priv_key = include_str!("../tests/test");
+        let pub_key = include_str!("../tests/test.pub");
+        let keys = RsaKeys::from_key_pem(priv_key).expect("failed to parse keys");
+        assert!(keys.private_key.is_some());
+        assert!(keys.public_key.is_some());
+
+        // Check if the public key is the same
+        let re_public_key = keys
+            .public_key_to_pem()
+            .expect("failed to convert public key to PEM");
+        assert_eq!(pub_key, re_public_key);
+    }
+
+    #[test]
     fn test_one_block() {
         test_message::<16, _>(b"Hello, World!   "); // Message is exactly one block
     }
@@ -204,5 +292,60 @@ mod tests {
     #[test]
     fn test_more_than_one_block() {
         test_message::<16, _>("Hello, World!".repeat(10)); // Message is more than one block
+    }
+
+    #[test]
+    fn test_with_other_buffer_size() {
+        test_message::<32, _>("Hello, World!".repeat(10)); // Message is more than one block
+    }
+
+    test_exotic_buffer_size!(
+        21, test_exotic_buffer_size_0, 20;
+        21, test_exotic_buffer_size_1, 21;
+        21, test_exotic_buffer_size_2, 22;
+        21, test_exotic_buffer_size_3, 28;
+        21, test_exotic_buffer_size_4, 36;
+        21, test_exotic_buffer_size_5, 37;
+        21, test_exotic_buffer_size_6, 42;
+        21, test_exotic_buffer_size_7, 69;
+        21, test_exotic_buffer_size_8, 255;
+        21, test_exotic_buffer_size_9, 1;
+        21, test_exotic_buffer_size_10, 2048;
+    );
+
+    #[test]
+    fn tcp_stream() {
+        use std::net::{TcpListener, TcpStream};
+        use std::thread;
+
+        let listener = TcpListener::bind("localhost:0").expect("failed to bind to address");
+        let port = listener.local_addr().unwrap().port();
+        let (private_key, public_key) = {
+            let keys = get_keys();
+            let private_key = keys.private_key.as_ref().unwrap();
+            let public_key = keys.public_key.as_ref().unwrap();
+            (private_key.clone(), public_key.clone())
+        };
+
+        let data = include_str!("../tests/lorem_ipsum.txt").as_bytes();
+
+        let handle = thread::spawn(move || {
+            let (stream, _) = listener.accept().expect("failed to accept connection");
+            // Send the data to the client
+            let mut writer = CryptoWriter::<_, 16>::new(stream, public_key).unwrap();
+            writer.write_all(data).expect("failed to write data");
+        });
+
+        let stream = TcpStream::connect(format!("localhost:{}", port)).expect("failed to connect");
+        let mut reader =
+            CryptoReader::<_, 16>::new(stream, private_key).expect("failed to create reader");
+        let mut decrypted = Vec::new();
+        reader
+            .read_to_end(&mut decrypted)
+            .expect("failed to read data");
+
+        handle.join().expect("failed to join thread");
+
+        assert_eq!(data, decrypted.as_slice());
     }
 }
