@@ -39,11 +39,12 @@
 //!
 //! ```rust
 //! // Encrypt and decrypt a message using RSA keys and buffers of size 16
-//! use my_crypto_lib::{CryptoReader, CryptoWriter, RsaKeys};
+//! use crypto::{CryptoReader, CryptoWriter, RsaKeys};
+//! use std::io::{Read as _, Write as _};
 //!
 //! let keys = RsaKeys::generate().expect("failed to generate keys");
-//! let public_key = keys.public_key().expect("failed to get public key");
-//! let private_key = keys.private_key().expect("failed to get private key");
+//! let public_key = keys.public_key.expect("failed to get public key");
+//! let private_key = keys.private_key.expect("failed to get private key");
 //!
 //! let mut encrypted = Vec::new();
 //! {

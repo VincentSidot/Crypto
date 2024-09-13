@@ -117,7 +117,7 @@ let mut writer = CryptoWriter::<_, 16>::new(&mut encrypted, public_key).unwrap()
 Encrypt and decrypt a message using RSA keys and buffers of size 16:
 
 ```rust
-use my_crypto_lib::{CryptoReader, CryptoWriter, RsaKeys};
+use crypto::{CryptoReader, CryptoWriter, RsaKeys};
 use std::io::{Write, Read};
 
 fn main() {
