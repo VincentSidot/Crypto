@@ -8,10 +8,10 @@
 //!
 //! - `CryptoWriter`: Encrypts data using a public RSA key and writes it to an output buffer.
 //!    - It implements the `std::io::Write` trait. To allow seamless integration with existing
-//!     Rust code that uses `std::io::Write`.
+//!      Rust code that uses `std::io::Write`.
 //! - `CryptoReader`: Decrypts data using a private RSA key and reads it from an input buffer.
 //!    - It implements the `std::io::Read` trait. To allow seamless integration with existing
-//!    Rust code that uses `std::io::Read
+//!      Rust code that uses `std::io::Read
 //! - `RsaKeys`: Manages RSA key pairs and provides utilities to generate, serialize, and deserialize keys.
 //!
 //! ## Encryption Scheme

@@ -29,7 +29,10 @@ enum Subcommands {
         input: PathBuf,
         #[clap(help = "Private key to decrypt the data")]
         key: PathBuf,
-        #[clap(help = "File to save the decrypted data (default: <data>.dec)", default_value="-")]
+        #[clap(
+            help = "File to save the decrypted data (default: <data>.dec)",
+            default_value = "-"
+        )]
         output: String,
     },
 }
@@ -82,7 +85,7 @@ fn main() {
     }
 }
 
-pub fn generate_keys(output: PathBuf) {
+fn generate_keys(output: PathBuf) {
     let keys = crypto::RsaKeys::generate().expect("failed to generate keys");
     let private_key = keys
         .private_key_to_pem()
@@ -101,7 +104,7 @@ pub fn generate_keys(output: PathBuf) {
     );
 }
 
-pub fn encrypt(public_key: PathBuf, input: PathBuf, output: Option<PathBuf>) {
+fn encrypt(public_key: PathBuf, input: PathBuf, output: Option<PathBuf>) {
     let key = RsaKeys::from_public_key_pem(
         &std::fs::read_to_string(public_key).expect("failed to read public key"),
     )
@@ -110,15 +113,10 @@ pub fn encrypt(public_key: PathBuf, input: PathBuf, output: Option<PathBuf>) {
     .unwrap();
 
     let output = output.unwrap_or_else(|| PathBuf::from(format!("{}.enc", input.display())));
-
     let file = std::fs::File::create(&output).expect("failed to open file");
-
     let mut writer = CryptoWriter::<_, 16>::new(file, key).expect("failed to create CryptoWriter");
-
     let data = std::fs::read(&input).expect("failed to read data");
-
     writer.write_all(&data).expect("failed to write data");
-
     println!("Encrypted data saved to {}", output.display());
 }
 
