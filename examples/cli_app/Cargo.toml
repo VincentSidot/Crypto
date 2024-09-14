@@ -3,6 +3,7 @@ name = "crypto-files"
 version = "1.0.0"
 edition = "2021"
 license = "MIT"
+authors = ["Vincent S. <v.sidot@aniah.fr>"]
 
 [dependencies]
 clap = { version = "4.5.17", features = ["derive"] }
