@@ -29,8 +29,8 @@ enum Subcommands {
         input: PathBuf,
         #[clap(help = "Private key to decrypt the data")]
         key: PathBuf,
-        #[clap(help = "File to save the decrypted data (default: <data>.dec)")]
-        output: Option<PathBuf>,
+        #[clap(help = "File to save the decrypted data (default: <data>.dec)", default_value="-")]
+        output: String,
     },
 }
 
@@ -43,6 +43,8 @@ enum Operation {
 fn main() {
     let start = std::time::Instant::now();
     let args: Args = Args::parse();
+
+    let mut footer_print = true;
 
     let op = match args.subcommand {
         Subcommands::Keygen { output } => {
@@ -62,16 +64,21 @@ fn main() {
             input: data,
             output,
         } => {
+            if &output == "-" {
+                footer_print = false;
+            }
             decrypt(private_key, data, output);
             Operation::Decrypt
         }
     };
 
     let elapsed = start.elapsed();
-    match op {
-        Operation::Keygen => println!("Key generation took {:?}", elapsed),
-        Operation::Encrypt => println!("Encryption took {:?}", elapsed),
-        Operation::Decrypt => println!("Decryption took {:?}", elapsed),
+    if footer_print {
+        match op {
+            Operation::Keygen => println!("Key generation took {:?}", elapsed),
+            Operation::Encrypt => println!("Encryption took {:?}", elapsed),
+            Operation::Decrypt => println!("Decryption took {:?}", elapsed),
+        }
     }
 }
 
@@ -115,7 +122,7 @@ pub fn encrypt(public_key: PathBuf, input: PathBuf, output: Option<PathBuf>) {
     println!("Encrypted data saved to {}", output.display());
 }
 
-pub fn decrypt(private_key: PathBuf, input: PathBuf, output: Option<PathBuf>) {
+pub fn decrypt(private_key: PathBuf, input: PathBuf, output: String) {
     let key = RsaKeys::from_private_key_pem(
         &std::fs::read_to_string(private_key).expect("failed to read private key"),
     )
@@ -123,15 +130,18 @@ pub fn decrypt(private_key: PathBuf, input: PathBuf, output: Option<PathBuf>) {
     .private_key
     .unwrap();
 
-    let file = std::fs::File::open(&input).expect("failed to open file");
+    let file = std::fs::File::open(&input).expect("Failed to open input file");
 
     let mut reader = CryptoReader::<_, 16>::new(file, key).expect("failed to create CryptoReader");
-
-    let output = output.unwrap_or_else(|| PathBuf::from(format!("{}.dec", input.display())));
-
-    let mut file = std::fs::File::create(&output).expect("failed to open file");
+    let mut file: Box<dyn std::io::Write> = if output == "-" {
+        Box::new(std::io::stdout())
+    } else {
+        Box::new(std::fs::File::create(&output).expect("failed to open output file"))
+    };
 
     std::io::copy(&mut reader, &mut file).expect("failed to write decrypted data");
 
-    println!("Decrypted data saved to {}", output.display());
+    if output != "-" {
+        println!("Decrypted data saved to {}", output);
+    }
 }
