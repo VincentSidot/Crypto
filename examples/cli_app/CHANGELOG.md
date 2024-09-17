@@ -13,3 +13,8 @@ First version of the project.
 ### Updated
 - The encryption scheme has been updated to use new `crypto` crate. (Now the data are encrypted
   by chunks instead of all at once)
+
+## [1.0.1] - 2024-09-17
+
+### Updated
+- The cli app while now decrypt the data to stdout if no output file is provided.
