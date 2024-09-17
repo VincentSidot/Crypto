@@ -18,3 +18,5 @@ First version of the project.
 
 ### Updated
 - The cli app while now decrypt the data to stdout if no output file is provided.
+- The cli app now decrypt the data by chunks instead of all at once. (This is usefull for
+  corrupted files). Maybe I should add correction codes in the future.

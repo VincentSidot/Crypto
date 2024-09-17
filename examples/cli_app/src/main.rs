@@ -1,6 +1,9 @@
 use clap::{Parser, Subcommand};
 use crypto::{CryptoReader, CryptoWriter, RsaKeys};
-use std::{io::Write as _, path::PathBuf};
+use std::{
+    io::{Read, Write as _},
+    path::PathBuf,
+};
 
 #[derive(Parser)]
 struct Args {
@@ -131,15 +134,25 @@ pub fn decrypt(private_key: PathBuf, input: PathBuf, output: String) {
     let file = std::fs::File::open(&input).expect("Failed to open input file");
 
     let mut reader = CryptoReader::<_, 16>::new(file, key).expect("failed to create CryptoReader");
-    let mut file: Box<dyn std::io::Write> = if output == "-" {
-        Box::new(std::io::stdout())
+    if output == "-" {
+        let mut buffer = [0u8; 16];
+        loop {
+            if let Ok(n) = reader.read(&mut buffer) {
+                if n == 0 {
+                    break;
+                }
+                std::io::stdout()
+                    .write_all(&buffer[..n])
+                    .expect("failed to write decrypted data");
+            } else {
+                _ = std::io::stdout().flush();
+                eprintln!("\n\nDecryption failed");
+                break;
+            };
+        }
     } else {
-        Box::new(std::fs::File::create(&output).expect("failed to open output file"))
-    };
-
-    std::io::copy(&mut reader, &mut file).expect("failed to write decrypted data");
-
-    if output != "-" {
+        let mut file = std::fs::File::create(&output).expect("failed to open output file");
+        std::io::copy(&mut reader, &mut file).expect("failed to write decrypted data");
         println!("Decrypted data saved to {}", output);
-    }
+    };
 }
