@@ -12,7 +12,7 @@ cargo check
 
 # Run cargo clippy
 # -D warnings: treat warnings as errors
-# -- -D warnings ensures the code is clippy-clean
+# -D warnings passed to clippy treats warnings as errors
 # assuming this is not a release build; otherwise we could add appropriate flags
 # It is recommended to have `clippy` available
 # If not installed: run `rustup component add clippy`
