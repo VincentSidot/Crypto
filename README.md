@@ -21,6 +21,7 @@
   - [Next Steps](#next-steps)
   - [Usage](#usage)
     - [Running Tests](#running-tests)
+    - [Git Hooks](#git-hooks)
     - [Key Management](#key-management)
     - [Buffer-Sized Operations](#buffer-sized-operations)
   - [Example](#example)
@@ -105,6 +106,23 @@ To run the tests, use the following command:
 ```bash
 cargo test
 ```
+
+### Git Hooks
+
+To automatically run checks before committing or pushing code, enable the Git
+hooks provided in this repository:
+
+```bash
+git config --local core.hooksPath .githooks
+```
+
+The following hooks are available:
+
+- **pre-commit**: formats the code and runs `cargo check` and `cargo clippy` to
+  ensure the code builds cleanly and without lints.
+- **pre-push**: runs the test suite via `cargo test` before allowing a push.
+
+These hooks help catch issues early and keep the codebase consistent.
 
 ### Key Management
 

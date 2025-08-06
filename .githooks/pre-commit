@@ -1,0 +1,21 @@
+#!/bin/sh
+# Git pre-commit hook to ensure code passes basic checks
+set -e
+
+# Ensure code is formatted
+echo "Running cargo fmt -- --check"
+cargo fmt --all -- --check
+
+# Run cargo check
+echo "Running cargo check"
+cargo check
+
+# Run cargo clippy
+# -D warnings: treat warnings as errors
+# -- -D warnings ensures the code is clippy-clean
+# assuming this is not a release build; otherwise we could add appropriate flags
+# It is recommended to have `clippy` available
+# If not installed: run `rustup component add clippy`
+echo "Running cargo clippy"
+cargo clippy -- -D warnings
+
