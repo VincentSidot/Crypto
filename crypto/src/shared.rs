@@ -9,8 +9,6 @@ use rand::rngs::ThreadRng;
 
 // Enforce 2048 bits key length. (Temporary solution)
 pub(crate) const RSA_KEY_LEN: usize = 2048;
-// RSA 2048 bits creates a 256 bytes encrypted data chunk.
-pub(crate) const AES_KEY_LEN: usize = 256;
 // 96 bits nonce for AES-GCM.
 pub(crate) const AES_NONCE_LEN: usize = 12;
 // 128 bits authentication tag for AES-GCM.

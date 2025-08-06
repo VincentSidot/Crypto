@@ -8,4 +8,6 @@ license = "MIT"
 [dependencies]
 aes-gcm = "0.10.3"
 rand = "0.8.5"
+p256 = { version = "0.13", features = ["ecdh"] }
 rsa = "0.9.6"
+

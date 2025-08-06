@@ -110,11 +110,13 @@
 mod decrypt;
 mod encrypt;
 mod error;
+mod backend;
 mod key;
 mod shared;
 
 pub use decrypt::CryptoReader;
 pub use encrypt::CryptoWriter;
+pub use backend::Backend;
 pub use error::Result; // Alias to std::io::Result
 pub use key::RsaKeys;
 
@@ -374,5 +376,29 @@ mod tests {
         handle.join().expect("failed to join thread");
 
         assert_eq!(data, decrypted.as_slice());
+    }
+
+    #[test]
+    fn ec_backend_roundtrip() {
+        use p256::{SecretKey, PublicKey};
+        let mut encrypted = Vec::new();
+        let mut rng = rand::thread_rng();
+        let secret = SecretKey::random(&mut rng);
+        let public = PublicKey::from(&secret);
+
+        {
+            let mut writer =
+                CryptoWriter::<_, 16>::new(&mut encrypted, public.clone()).expect("writer");
+            writer.write_all(b"ec message").expect("write");
+        }
+
+        let mut decrypted = Vec::new();
+        {
+            let mut reader =
+                CryptoReader::<_, 16>::new(encrypted.as_slice(), secret).expect("reader");
+            reader.read_to_end(&mut decrypted).expect("read");
+        }
+
+        assert_eq!(b"ec message", decrypted.as_slice());
     }
 }
