@@ -154,8 +154,8 @@ impl<R: std::io::Read, const BUFFER_SIZE: usize> CryptoReader<R, BUFFER_SIZE> {
         self.buffer_len = self.enc_buffer_len - AES_AUTH_TAG_LEN;
         let start = BUFFER_SIZE - self.buffer_len;
         self.buffer[start..start + self.buffer_len].copy_from_slice(result.as_slice());
-        // Reset encrypted buffer
-        self.enc_buffer = vec![0; BUFFER_SIZE + AES_AUTH_TAG_LEN];
+        // Reset encrypted buffer without reallocating
+        self.enc_buffer[..self.enc_buffer_len].fill(0);
         self.enc_buffer_len = 0;
         Ok(())
     }
