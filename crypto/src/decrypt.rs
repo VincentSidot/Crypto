@@ -149,10 +149,12 @@ impl<R: std::io::Read, const BUFFER_SIZE: usize> CryptoReader<R, BUFFER_SIZE> {
             .map_err(|e| error!(Other, "AES Decryption error: {}", e))?;
         dbg_println!("Block decrypted: {}", result.len());
         increment_nonce(&mut self.nonce);
-        // Setup buffer
+        // Setup buffer - store decrypted bytes right-aligned in the buffer so that
+        // subsequent reads can assume the data starts at `BUFFER_SIZE - buffer_len`.
         self.buffer_len = self.enc_buffer_len - AES_AUTH_TAG_LEN;
-        self.buffer[..self.buffer_len].copy_from_slice(result.as_slice());
-        // Reset encrpyted buffer
+        let start = BUFFER_SIZE - self.buffer_len;
+        self.buffer[start..start + self.buffer_len].copy_from_slice(result.as_slice());
+        // Reset encrypted buffer
         self.enc_buffer = vec![0; BUFFER_SIZE + AES_AUTH_TAG_LEN];
         self.enc_buffer_len = 0;
         Ok(())
@@ -220,7 +222,9 @@ impl<R: std::io::Read, const BUFFER_SIZE: usize> std::io::Read for CryptoReader<
             self.decrypt_buffer()?;
 
             let to_copy = min!(target_len - total_read, BUFFER_SIZE, self.buffer_len);
-            buf[total_read..total_read + to_copy].copy_from_slice(&self.buffer[..to_copy]);
+            let buffer_start_idx = BUFFER_SIZE - self.buffer_len;
+            buf[total_read..total_read + to_copy]
+                .copy_from_slice(&self.buffer[buffer_start_idx..buffer_start_idx + to_copy]);
             self.buffer_len -= to_copy;
             total_read += to_copy;
         }

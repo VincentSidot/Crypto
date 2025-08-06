@@ -290,6 +290,40 @@ mod tests {
     }
 
     #[test]
+    fn test_partial_reads_less_than_one_block() {
+        let keys = get_keys();
+        let (private_key, public_key) = {
+            let private_key = keys.private_key.as_ref().unwrap();
+            let public_key = keys.public_key.as_ref().unwrap();
+            (private_key.clone(), public_key.clone())
+        };
+
+        let mut encrypted = Vec::new();
+
+        {
+            let mut writer =
+                CryptoWriter::<_, 16>::new(&mut encrypted, public_key).unwrap();
+            writer.write_all(b"Hello, World!").unwrap();
+        }
+
+        let mut reader =
+            CryptoReader::<_, 16>::new(encrypted.as_slice(), private_key).unwrap();
+
+        let mut buf = [0u8; 5];
+        let mut decrypted = Vec::new();
+
+        loop {
+            let read = reader.read(&mut buf).unwrap();
+            if read == 0 {
+                break;
+            }
+            decrypted.extend_from_slice(&buf[..read]);
+        }
+
+        assert_eq!(b"Hello, World!", decrypted.as_slice());
+    }
+
+    #[test]
     fn test_more_than_one_block() {
         test_message::<16, _>("Hello, World!".repeat(10)); // Message is more than one block
     }
