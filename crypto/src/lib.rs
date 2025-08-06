@@ -160,20 +160,15 @@ pub(crate) use dbg_println;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Read as _, Write as _};
+    use std::{
+        io::{Read as _, Write as _},
+        sync::OnceLock,
+    };
 
-    static mut KEYS: Option<RsaKeys> = None;
+    static KEYS: OnceLock<RsaKeys> = OnceLock::new();
 
     fn get_keys() -> &'static RsaKeys {
-        unsafe {
-            if let Some(keys) = KEYS.as_ref() {
-                keys
-            } else {
-                let keys = RsaKeys::generate().expect("failed to generate keys");
-                KEYS = Some(keys);
-                KEYS.as_ref().unwrap()
-            }
-        }
+        KEYS.get_or_init(|| RsaKeys::generate().expect("failed to generate keys"))
     }
 
     fn test_message<const BUFFER_SIZE: usize, T: AsRef<[u8]>>(msg: T) {
@@ -301,13 +296,11 @@ mod tests {
         let mut encrypted = Vec::new();
 
         {
-            let mut writer =
-                CryptoWriter::<_, 16>::new(&mut encrypted, public_key).unwrap();
+            let mut writer = CryptoWriter::<_, 16>::new(&mut encrypted, public_key).unwrap();
             writer.write_all(b"Hello, World!").unwrap();
         }
 
-        let mut reader =
-            CryptoReader::<_, 16>::new(encrypted.as_slice(), private_key).unwrap();
+        let mut reader = CryptoReader::<_, 16>::new(encrypted.as_slice(), private_key).unwrap();
 
         let mut buf = [0u8; 5];
         let mut decrypted = Vec::new();
