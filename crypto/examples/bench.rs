@@ -11,8 +11,8 @@ fn main() {
     let mut encrypted = Vec::new();
     let start = Instant::now();
     {
-        let mut writer = CryptoWriter::<_, 8192>::new(&mut encrypted, public.clone())
-            .expect("create writer");
+        let mut writer =
+            CryptoWriter::<_, 8192>::new(&mut encrypted, public.clone()).expect("create writer");
         writer.write_all(&data).expect("encrypt data");
     }
     let enc_time = start.elapsed();
@@ -20,14 +20,16 @@ fn main() {
     let mut decrypted = Vec::new();
     let start = Instant::now();
     {
-        let mut reader = CryptoReader::<_, 4096>::new(encrypted.as_slice(), private)
-            .expect("create reader");
+        let mut reader =
+            CryptoReader::<_, 8192>::new(encrypted.as_slice(), private).expect("create reader");
         reader.read_to_end(&mut decrypted).expect("decrypt data");
     }
     let dec_time = start.elapsed();
 
     println!(
         "Encrypted {} bytes in {:?}, decrypted in {:?}",
-        data.len(), enc_time, dec_time
+        data.len(),
+        enc_time,
+        dec_time
     );
 }
