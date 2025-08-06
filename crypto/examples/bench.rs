@@ -11,7 +11,7 @@ fn main() {
     let mut encrypted = Vec::new();
     let start = Instant::now();
     {
-        let mut writer = CryptoWriter::<_, 16>::new(&mut encrypted, public.clone())
+        let mut writer = CryptoWriter::<_, 8192>::new(&mut encrypted, public.clone())
             .expect("create writer");
         writer.write_all(&data).expect("encrypt data");
     }
