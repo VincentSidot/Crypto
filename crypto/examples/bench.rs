@@ -20,7 +20,7 @@ fn main() {
     let mut decrypted = Vec::new();
     let start = Instant::now();
     {
-        let mut reader = CryptoReader::<_, 16>::new(encrypted.as_slice(), private)
+        let mut reader = CryptoReader::<_, 4096>::new(encrypted.as_slice(), private)
             .expect("create reader");
         reader.read_to_end(&mut decrypted).expect("decrypt data");
     }
