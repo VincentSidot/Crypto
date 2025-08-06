@@ -165,9 +165,9 @@ impl<W: std::io::Write, const BUFFER_SIZE: usize> CryptoWriter<W, BUFFER_SIZE> {
             Err(error!(Other, "Failed to write the encrypted data"))?;
         }; // Write the encrypted data to the writer
 
-        // Reset the buffer
+        // Reset the buffer without reallocating
+        self.buffer[..self.buffer_len].fill(0);
         self.buffer_len = 0;
-        self.buffer = [0; BUFFER_SIZE];
 
         // Increment the nonce
         increment_nonce(&mut self.nonce);
