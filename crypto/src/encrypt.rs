@@ -1,13 +1,14 @@
 //! This module provides a writer that encrypts the data before writing it to the writer.
 //!
-//! The data is encrypted using AES-256-GCM. The AES key is encrypted using the RSA public key.
+//! The data is encrypted using AES-256-GCM. The AES key is encrypted using the
+//! asymmetric backend provided by the user.
 //!
 //! The data is written to the writer in the following format:
 //! ```plaintext
 //! +-----------------+   +-----------------+   +-----------------+   +-----------------+   
 //! |     AES Key     |   |    AES NONCE    |   |     AES Data    |   |     AES Data    |   
 //! +-----------------+   +-----------------+   +-----------------+   +-----------------+   
-//! |     RSA Enc     |   |                 |   |                 |   |                 |   ...
+//! |  BACKEND Enc    |   |                 |   |                 |   |                 |   ...
 //! +-----------------+   +-----------------+   +-----------------+   +-----------------+   
 //! |   AES KEY LEN   |   |  AES NONCE LEN  |   |   BUFFER_SIZE   |   |   BUFFER_SIZE   |  
 //! +-----------------+   +-----------------+   +-----------------+   +-----------------+
@@ -29,7 +30,7 @@ use super::{
 };
 use aes_gcm::{aead::Aead, AeadCore as _, Aes256Gcm, Key, KeyInit as _};
 use rand::{CryptoRng, RngCore};
-use rsa::{Pkcs1v15Encrypt, RsaPublicKey};
+use crate::backend::Backend;
 use std::io::Write as _;
 
 fn generate_aes_key<R: CryptoRng + RngCore>(rng: &mut R) -> Key<Aes256Gcm> {
@@ -39,14 +40,14 @@ fn generate_aes_key<R: CryptoRng + RngCore>(rng: &mut R) -> Key<Aes256Gcm> {
 /// A writer that encrypts the data before writing it to the writer.
 ///
 /// The data is encrypted using AES-256-GCM.
-/// The AES key is encrypted using the RSA public key.
+/// The AES key is encrypted using the backend public key.
 ///
 /// The data is written to the writer in the following format:
 /// ```plaintext
 /// +-----------------+   +-----------------+   +-----------------+   +-----------------+   
 /// |     AES Key     |   |    AES NONCE    |   |     AES Data    |   |     AES Data    |   
 /// +-----------------+   +-----------------+   +-----------------+   +-----------------+   
-/// |     RSA Enc     |   |                 |   |                 |   |                 |   ...
+/// |  BACKEND Enc    |   |                 |   |                 |   |                 |   ...
 /// +-----------------+   +-----------------+   +-----------------+   +-----------------+   
 /// |   AES KEY LEN   |   |  AES NONCE LEN  |   |   BUFFER_SIZE   |   |   BUFFER_SIZE   |  
 /// +-----------------+   +-----------------+   +-----------------+   +-----------------+
@@ -68,13 +69,13 @@ impl<W: std::io::Write, const BUFFER_SIZE: usize> CryptoWriter<W, BUFFER_SIZE> {
     ///
     /// # Arguments
     /// - `writer`: The writer to write the encrypted data.
-    /// - `key`: The RSA public key to encrypt the AES key.
+    /// - `key`: The public key used by the backend to encrypt the AES key.
     ///
     /// # Returns
     /// A `CryptoWriter` instance.
     ///
     /// # Errors
-    /// - `Invalid Rsa Key`: If the RSA key is invalid.
+    /// - `Invalid Key`: If the backend key is invalid.
     /// - `Io`: If an I/O error occurs. Details are provided in the error message.
     ///
     /// # Safety
@@ -90,13 +91,13 @@ impl<W: std::io::Write, const BUFFER_SIZE: usize> CryptoWriter<W, BUFFER_SIZE> {
     /// +-----------------+   +-----------------+   +-----------------+   +-----------------+   
     /// |     AES Key     |   |    AES NONCE    |   |     AES Data    |   |     AES Data    |   
     /// +-----------------+   +-----------------+   +-----------------+   +-----------------+   
-    /// |     RSA Enc     |   |                 |   |                 |   |                 |   ...
+    /// |  BACKEND Enc    |   |                 |   |                 |   |                 |   ...
     /// +-----------------+   +-----------------+   +-----------------+   +-----------------+   
     /// |   AES KEY LEN   |   |  AES NONCE LEN  |   |   BUFFER_SIZE   |   |   BUFFER_SIZE   |  
     /// +-----------------+   +-----------------+   +-----------------+   +-----------------+
     /// ```
     ///
-    pub fn new(writer: W, key: RsaPublicKey) -> Result<Self> {
+    pub fn new<B: Backend>(writer: W, key: B) -> Result<Self> {
         // TODO: memlock secrets in memory
         let mut rng = setup_rng();
         Self::new_with_rng(writer, key, &mut rng)
@@ -107,7 +108,7 @@ impl<W: std::io::Write, const BUFFER_SIZE: usize> CryptoWriter<W, BUFFER_SIZE> {
     ///
     /// # Arguments
     /// - `writer`: The writer to write the encrypted data.
-    /// - `key`: The RSA public key to encrypt the AES key.
+    /// - `key`: The backend public key to encrypt the AES key.
     /// - `rng`: The random number generator.
     ///
     /// # Returns
@@ -117,9 +118,9 @@ impl<W: std::io::Write, const BUFFER_SIZE: usize> CryptoWriter<W, BUFFER_SIZE> {
     /// The random number generator must be cryptographically secure. And should implement the
     /// `CryptoRng` and `RngCore` traits. (From the `rand` crate)
     ///
-    pub fn new_with_rng<R: CryptoRng + RngCore>(
+    pub fn new_with_rng<R: CryptoRng + RngCore, B: Backend>(
         mut writer: W,
-        key: RsaPublicKey,
+        key: B,
         mut rng: R,
     ) -> Result<Self> {
         let aes_key = generate_aes_key(&mut rng);
@@ -127,9 +128,7 @@ impl<W: std::io::Write, const BUFFER_SIZE: usize> CryptoWriter<W, BUFFER_SIZE> {
 
         {
             let raw_aes_key = aes_key.as_slice();
-            let data = key
-                .encrypt(&mut rng, Pkcs1v15Encrypt, raw_aes_key)
-                .map_err(|e| error!(Other, "RSA Encryption error: {}", e))?;
+            let data = key.encrypt(&mut rng, raw_aes_key)?;
 
             if writer.write(&data)? != data.len() {
                 Err(error!(Other, "Failed to write the encrypted AES key"))?;

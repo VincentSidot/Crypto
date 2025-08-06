@@ -1,6 +1,7 @@
 //! This module contains the `CryptoReader` struct that decrypts data read from an underlying reader.
 //!
-//! The data is decrypted using AES-256-GCM. The AES key is decrypted using the RSA private key.
+//! The data is decrypted using AES-256-GCM. The AES key is decrypted using the
+//! asymmetric backend selected by the caller.
 //!
 //! The data is read from the reader in the following format:
 //!
@@ -8,7 +9,7 @@
 //! +-----------------+   +-----------------+   +-----------------+   +-----------------+   
 //! |     AES Key     |   |    AES NONCE    |   |     AES Data    |   |     AES Data    |   
 //! +-----------------+   +-----------------+   +-----------------+   +-----------------+   
-//! |     RSA Enc     |   |                 |   |                 |   |                 |   ...
+//! |  BACKEND Enc    |   |                 |   |                 |   |                 |   ...
 //! +-----------------+   +-----------------+   +-----------------+   +-----------------+   
 //! |   AES KEY LEN   |   |  AES NONCE LEN  |   |   BUFFER_SIZE   |   |   BUFFER_SIZE   |  
 //! +-----------------+   +-----------------+   +-----------------+   +-----------------+
@@ -26,10 +27,10 @@
 use super::{
     dbg_println,
     error::{error, Result},
-    shared::{increment_nonce, Nonce, AES_AUTH_TAG_LEN, AES_KEY_LEN, AES_NONCE_LEN},
+    shared::{increment_nonce, Nonce, AES_AUTH_TAG_LEN, AES_NONCE_LEN},
 };
 use aes_gcm::{aead::Aead, Aes256Gcm, Key, KeyInit as _};
-use rsa::{Pkcs1v15Encrypt, RsaPrivateKey};
+use crate::backend::Backend;
 
 macro_rules! min {
     ($($args:expr),*) => {
@@ -46,14 +47,14 @@ macro_rules! min {
 /// A reader that decrypts data read from an underlying reader.
 ///
 /// The data is decrypted using AES-256-GCM.
-/// The AES key is decrypted using the RSA private key.
+/// The AES key is decrypted using the backend private key.
 ///
 /// The data is read from the reader in the following format:
 /// ```plaintext
 /// +-----------------+   +-----------------+   +-----------------+   +-----------------+   
 /// |     AES Key     |   |    AES NONCE    |   |     AES Data    |   |     AES Data    |   
 /// +-----------------+   +-----------------+   +-----------------+   +-----------------+   
-/// |     RSA Enc     |   |                 |   |                 |   |                 |   ...
+/// |  BACKEND Enc    |   |                 |   |                 |   |                 |   ...
 /// +-----------------+   +-----------------+   +-----------------+   +-----------------+   
 /// |   AES KEY LEN   |   |  AES NONCE LEN  |   |   BUFFER_SIZE   |   |   BUFFER_SIZE   |  
 /// +-----------------+   +-----------------+   +-----------------+   +-----------------+
@@ -77,13 +78,13 @@ impl<R: std::io::Read, const BUFFER_SIZE: usize> CryptoReader<R, BUFFER_SIZE> {
     ///
     /// # Arguments
     /// - `reader`: The reader from which encrypted data is read.
-    /// - `key`: The RSA private key to decrypt the AES key.
+    /// - `key`: The private key used by the backend to decrypt the AES key.
     ///
     /// # Returns
     /// A `CryptoReader` instance.
     ///
     /// # Errors
-    /// - `Invalid Rsa Key`: If the RSA key is invalid.
+    /// - `Invalid Key`: If the backend key is invalid.
     /// - `Io`: If an I/O error occurs. Details are provided in the error message.
     ///
     /// # Safety
@@ -99,22 +100,19 @@ impl<R: std::io::Read, const BUFFER_SIZE: usize> CryptoReader<R, BUFFER_SIZE> {
     /// +-----------------+   +-----------------+   +-----------------+   +-----------------+   
     /// |     AES Key     |   |    AES NONCE    |   |     AES Data    |   |     AES Data    |   
     /// +-----------------+   +-----------------+   +-----------------+   +-----------------+   
-    /// |     RSA Enc     |   |                 |   |                 |   |                 |   ...
+    /// |  BACKEND Enc    |   |                 |   |                 |   |                 |   ...
     /// +-----------------+   +-----------------+   +-----------------+   +-----------------+   
     /// |   AES KEY LEN   |   |  AES NONCE LEN  |   |   BUFFER_SIZE   |   |   BUFFER_SIZE   |  
     /// +-----------------+   +-----------------+   +-----------------+   +-----------------+
     /// ```
     ///
-    pub fn new(mut reader: R, key: RsaPrivateKey) -> Result<Self> {
+    pub fn new<B: Backend>(mut reader: R, key: B) -> Result<Self> {
         let cipher = {
-            let buffer = &mut [0; AES_KEY_LEN];
-            reader.read_exact(buffer)?;
+            let mut buffer = vec![0; B::ENCRYPTED_KEY_LEN];
+            reader.read_exact(&mut buffer)?;
 
             // Decrypt the AES key
-            let raw_aes_key = key
-                .decrypt(Pkcs1v15Encrypt, buffer)
-                .map_err(|e| error!(Other, "RSA Decryption error: {}", e))?;
-
+            let raw_aes_key = key.decrypt(&buffer)?;
             let aes_key = Key::<Aes256Gcm>::from_slice(&raw_aes_key);
             Aes256Gcm::new(aes_key)
         };
